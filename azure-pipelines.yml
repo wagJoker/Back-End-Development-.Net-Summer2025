@@ -1,0 +1,108 @@
+trigger:
+  - main
+
+variables:
+  - name: solution
+    value: 'ChatApp.sln'
+  - name: buildPlatform
+    value: 'Any CPU'
+  - name: buildConfiguration
+    value: 'Release'
+  - name: dockerRegistryServiceConnection
+    value: 'azure-container-registry'
+  - name: imageRepository
+    value: 'chat-app'
+  - name: containerRegistry
+    value: '$(dockerRegistryServiceConnection)'
+  - name: dockerfilePath
+    value: '$(Build.SourcesDirectory)/ChatApp.Backend/Dockerfile'
+  - name: tag
+    value: '$(Build.BuildId)'
+  - name: vmImageName
+    value: 'ubuntu-latest'
+
+stages:
+- stage: Build
+  displayName: Build and push stage
+  jobs:
+  - job: Build
+    displayName: Build
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    - task: DotNetCoreCLI@2
+      displayName: Build Backend
+      inputs:
+        command: 'build'
+        projects: '$(solution)'
+        arguments: '--configuration $(buildConfiguration)'
+
+    - task: DotNetCoreCLI@2
+      displayName: Run Tests
+      inputs:
+        command: 'test'
+        projects: '**/*Tests/*.csproj'
+        arguments: '--configuration $(buildConfiguration) --collect:"XPlat Code Coverage"'
+
+    - task: Docker@2
+      displayName: Build and push backend image
+      inputs:
+        command: buildAndPush
+        repository: $(imageRepository)-backend
+        dockerfile: $(dockerfilePath)
+        containerRegistry: $(containerRegistry)
+        tags: |
+          $(tag)
+          latest
+
+    - task: Npm@1
+      displayName: 'npm install'
+      inputs:
+        command: 'install'
+        workingDir: '$(Build.SourcesDirectory)/chat-app-frontend'
+
+    - task: Npm@1
+      displayName: 'npm build'
+      inputs:
+        command: 'custom'
+        workingDir: '$(Build.SourcesDirectory)/chat-app-frontend'
+        customCommand: 'run build'
+
+    - task: Docker@2
+      displayName: Build and push frontend image
+      inputs:
+        command: buildAndPush
+        repository: $(imageRepository)-frontend
+        dockerfile: '$(Build.SourcesDirectory)/chat-app-frontend/Dockerfile'
+        containerRegistry: $(containerRegistry)
+        tags: |
+          $(tag)
+          latest
+
+- stage: Deploy
+  displayName: Deploy stage
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - deployment: Deploy
+    pool:
+      vmImage: $(vmImageName)
+    environment: 'production'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureWebAppContainer@1
+            displayName: Deploy Backend
+            inputs:
+              azureSubscription: 'Azure subscription'
+              appName: 'chat-app-backend'
+              imageName: $(containerRegistry)/$(imageRepository)-backend:$(tag)
+              containerCommand: 'dotnet ChatApp.Backend.dll'
+
+          - task: AzureWebAppContainer@1
+            displayName: Deploy Frontend
+            inputs:
+              azureSubscription: 'Azure subscription'
+              appName: 'chat-app-frontend'
+              imageName: $(containerRegistry)/$(imageRepository)-frontend:$(tag) 

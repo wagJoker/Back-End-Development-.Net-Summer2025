@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "appServicePlanName": {
+      "value": "chat-app-plan"
+    },
+    "backendAppName": {
+      "value": "chat-app-backend"
+    },
+    "frontendAppName": {
+      "value": "chat-app-frontend"
+    },
+    "sqlServerName": {
+      "value": "chat-app-sql"
+    },
+    "sqlDatabaseName": {
+      "value": "ChatApp"
+    },
+    "signalRName": {
+      "value": "chat-app-signalr"
+    },
+    "cognitiveServicesName": {
+      "value": "chat-app-cognitive"
+    },
+    "location": {
+      "value": "eastus"
+    },
+    "sqlServerPassword": {
+      "value": "YourStrong!Passw0rd"
+    }
+  }
+} 
